@@ -1,29 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { AppLayout } from "@/layouts/AppLayout";
+import { Hero } from "@/components/landing/Hero";
+import { EmergencyCTA } from "@/components/landing/EmergencyCTA";
+import { Stats } from "@/components/landing/Stats";
+import { HowItWorks } from "@/components/landing/HowItWorks";
+import { Testimonials } from "@/components/landing/Testimonials";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Your App" },
-      { name: "description", content: "Replace this with a one-sentence description of your app." },
-      { property: "og:title", content: "Your App" },
-      { property: "og:description", content: "Replace this with a one-sentence description of your app." },
+      { title: "Adhi Bloodconnect — Intelligent Blood Donation" },
+      { name: "description", content: "AI-powered blood donation platform connecting donors, patients, and hospitals in real time." },
+      { property: "og:title", content: "Adhi Bloodconnect" },
+      { property: "og:description", content: "Connecting lives through intelligent blood donation." },
     ],
   }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <AppLayout>
+      <Hero />
+      <Stats />
+      <EmergencyCTA />
+      <HowItWorks />
+      <Testimonials />
+    </AppLayout>
   );
 }
