@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Siren, Plus, Phone, MapPin } from "lucide-react";
+import { Siren, Plus, Phone, MapPin, Navigation } from "lucide-react";
 import { toast } from "sonner";
 import { AppLayout } from "@/layouts/AppLayout";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,26 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { BloodBadge } from "@/components/BloodBadge";
 import { BLOOD_GROUPS, dummyRequests, type EmergencyRequest } from "@/lib/dummy";
 import { cn } from "@/lib/utils";
+import { api } from "@/services/api";
+
+async function handleHelp(request: EmergencyRequest) {
+  // 1. Open Google Maps driving directions to the hospital
+  const destination = encodeURIComponent(`${request.hospital}, ${request.city ?? "India"}`);
+  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
+  window.open(mapsUrl, "_blank");
+
+  // 2. Notify backend that this donor is responding
+  try {
+    await api.post("/notifications/respond", {
+      request_id: request.id,
+      patient_name: request.patient,
+      hospital: request.hospital,
+    });
+    toast.success(`✅ Notified ${request.patient}'s family — you're on the way! Thank you for saving a life 🩸`);
+  } catch {
+    toast.success(`🗺️ Google Maps opened for ${request.hospital}. Drive safe, lifesaver!`);
+  }
+}
 
 export const Route = createFileRoute("/_authenticated/requests")({
   head: () => ({ meta: [{ title: "Emergency Requests · Adhi" }] }),
@@ -136,7 +156,12 @@ function RequestsPage() {
                 <p className="flex items-center gap-2"><Phone className="h-3 w-3" /> {r.contact}</p>
                 <p className="text-xs">Posted {r.createdAt}</p>
               </div>
-              <Button className="mt-4 w-full bg-primary-gradient">I can help</Button>
+              <Button
+                className="mt-4 w-full bg-primary-gradient gap-2"
+                onClick={() => handleHelp(r)}
+              >
+                <Navigation className="h-4 w-4" /> I can help — Get Directions
+              </Button>
             </Card>
           ))}
         </div>

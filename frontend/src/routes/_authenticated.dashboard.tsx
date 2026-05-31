@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Calendar, Bell, Activity, Heart, Phone } from "lucide-react";
+import { Calendar, Bell, Activity, Heart, Navigation } from "lucide-react";
 import { toast } from "sonner";
 import { AppLayout } from "@/layouts/AppLayout";
 import { Card } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { MapPlaceholder } from "@/components/MapPlaceholder";
 import { useAuth } from "@/context/AuthContext";
 import { dummyRequests, dummyNotifications } from "@/lib/dummy";
 import { cn } from "@/lib/utils";
+import { api } from "@/services/api";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard · Adhi Bloodconnect" }] }),
@@ -23,6 +24,32 @@ const history = [
   { date: "2024-08-15", hospital: "Manipal", units: 1, status: "Completed" },
 ];
 
+async function handleRespond(request: {
+  id: string;
+  patient: string;
+  hospital: string;
+  city: string;
+  contact: string;
+}) {
+  // 1. Open Google Maps driving directions to the hospital
+  const destination = encodeURIComponent(`${request.hospital}, ${request.city}`);
+  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
+  window.open(mapsUrl, "_blank");
+
+  // 2. Notify backend that this donor is responding
+  try {
+    await api.post("/notifications/respond", {
+      request_id: request.id,
+      patient_name: request.patient,
+      hospital: request.hospital,
+    });
+    toast.success(`✅ Notified ${request.patient}'s team — you're on the way!`);
+  } catch {
+    // Backend call is optional — Maps still opens even if it fails
+    toast.success(`🗺️ Google Maps opened for ${request.hospital}. Drive safe!`);
+  }
+}
+
 function Dashboard() {
   const { user, updateUser } = useAuth();
 
@@ -31,8 +58,12 @@ function Dashboard() {
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Donor dashboard</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight">Hello, {user?.name?.split(" ")[0] || "Donor"} 👋</h1>
-          <p className="mt-1 text-muted-foreground">Your impact, requests near you, and donation history — all in one place.</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight">
+            Hello, {user?.name?.split(" ")[0] || "Donor"} 👋
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            Your impact, requests near you, and donation history — all in one place.
+          </p>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
@@ -85,7 +116,7 @@ function Dashboard() {
             </div>
           </Card>
 
-          {/* Emergency requests */}
+          {/* Nearby Emergency Requests */}
           <Card className="p-6 lg:col-span-2">
             <div className="flex items-center justify-between">
               <div>
@@ -97,12 +128,19 @@ function Dashboard() {
             </div>
             <div className="mt-4 space-y-3">
               {dummyRequests.slice(0, 3).map((r) => (
-                <div key={r.id} className="flex items-center justify-between rounded-xl border bg-background p-4">
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between rounded-xl border bg-background p-4"
+                >
                   <div className="flex items-center gap-3">
                     <BloodBadge group={r.bloodGroup} size="sm" />
                     <div>
-                      <p className="text-sm font-medium">{r.patient} · {r.units} units</p>
-                      <p className="text-xs text-muted-foreground">{r.hospital} · {r.createdAt}</p>
+                      <p className="text-sm font-medium">
+                        {r.patient} · {r.units} units
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {r.hospital} · {r.createdAt}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -116,8 +154,20 @@ function Dashboard() {
                     >
                       {r.urgency}
                     </span>
-                    <Button size="sm" className="gap-1.5 bg-primary-gradient">
-                      <Phone className="h-3 w-3" /> Respond
+                    <Button
+                      size="sm"
+                      className="gap-1.5 bg-primary-gradient"
+                      onClick={() =>
+                        handleRespond({
+                          id: r.id,
+                          patient: r.patient,
+                          hospital: r.hospital,
+                          city: r.city ?? "Bangalore",
+                          contact: r.contact,
+                        })
+                      }
+                    >
+                      <Navigation className="h-3 w-3" /> Respond
                     </Button>
                   </div>
                 </div>
@@ -149,7 +199,7 @@ function Dashboard() {
             </div>
           </Card>
 
-          {/* History */}
+          {/* Donation History */}
           <Card className="p-6 lg:col-span-3">
             <h2 className="text-lg font-semibold">Donation history</h2>
             <div className="mt-4 overflow-x-auto">
