@@ -35,12 +35,12 @@ async def signup(signup_data: UserSignup, db: AsyncIOMotorDatabase = Depends(get
             status_code=status.HTTP_201_CREATED
         )
     except Exception as e:
-        # FastAPI custom error logs are handled in logging middleware, return standard responses
         from fastapi import HTTPException
         if isinstance(e, HTTPException):
             return error_response(message=e.detail, status_code=e.status_code)
         logger.exception("Unexpected exception occurred during registration.")
-        return error_response(message="An error occurred during account creation.", status_code=500)
+        return error_response(message=f"An error occurred during account creation: {str(e)}", status_code=500)
+
 
 @router.post("/login", dependencies=[Depends(rate_limiter)])
 async def login(login_data: UserLogin, db: AsyncIOMotorDatabase = Depends(get_db)):
@@ -94,4 +94,6 @@ async def google_login(payload: GoogleLoginRequest, db: AsyncIOMotorDatabase = D
             message="OAuth authentication successful."
         )
     except Exception as e:
-        return error_response(message="Google authentication failed.", status_code=400)
+        logger.exception("Google login failed")
+        return error_response(message=f"Google authentication failed: {str(e)}", status_code=400)
+

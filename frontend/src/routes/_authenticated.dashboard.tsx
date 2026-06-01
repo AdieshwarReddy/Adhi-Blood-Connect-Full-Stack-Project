@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
 import { Calendar, Bell, Activity, Heart, Navigation } from "lucide-react";
 import { toast } from "sonner";
 import { AppLayout } from "@/layouts/AppLayout";
@@ -9,9 +10,52 @@ import { Badge } from "@/components/ui/badge";
 import { BloodBadge } from "@/components/BloodBadge";
 import { MapPlaceholder } from "@/components/MapPlaceholder";
 import { useAuth } from "@/context/AuthContext";
-import { dummyRequests, dummyNotifications } from "@/lib/dummy";
+import { dummyRequests, dummyNotifications, type EmergencyRequest } from "@/lib/dummy";
 import { cn } from "@/lib/utils";
-import { api } from "@/services/api";
+import { api, RequestsAPI } from "@/services/api";
+
+function mapBackendRequest(r: any): EmergencyRequest {
+  const urgencyMapping: Record<string, "Critical" | "High" | "Moderate"> = {
+    critical: "Critical",
+    high: "High",
+    medium: "High",
+    moderate: "Moderate",
+    low: "Moderate",
+  };
+  
+  let timeStr = "some time ago";
+  if (r.created_at) {
+    try {
+      const createdDate = new Date(r.created_at);
+      const diffMs = Date.now() - createdDate.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) {
+        timeStr = "just now";
+      } else if (diffMins < 60) {
+        timeStr = `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+      } else {
+        const diffHrs = Math.floor(diffMins / 60);
+        if (diffHrs < 24) {
+          timeStr = `${diffHrs} hour${diffHrs > 1 ? "s" : ""} ago`;
+        } else {
+          timeStr = createdDate.toLocaleDateString();
+        }
+      }
+    } catch {}
+  }
+  
+  return {
+    id: r.id || r._id || String(Math.random()),
+    patient: r.patient_name || "Unknown Patient",
+    bloodGroup: (r.blood_group || "O+") as EmergencyRequest["bloodGroup"],
+    units: r.units_needed || 1,
+    hospital: r.hospital_name || "Unknown Hospital",
+    urgency: urgencyMapping[r.urgency_level?.toLowerCase()] || "High",
+    contact: r.hospital_contact || "+919876543210",
+    city: r.city || "Bangalore",
+    createdAt: timeStr,
+  };
+}
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard · Adhi Bloodconnect" }] }),
@@ -31,12 +75,10 @@ async function handleRespond(request: {
   city: string;
   contact: string;
 }) {
-  // 1. Open Google Maps driving directions to the hospital
   const destination = encodeURIComponent(`${request.hospital}, ${request.city}`);
   const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
   window.open(mapsUrl, "_blank");
 
-  // 2. Notify backend that this donor is responding
   try {
     await api.post("/notifications/respond", {
       request_id: request.id,
@@ -45,13 +87,31 @@ async function handleRespond(request: {
     });
     toast.success(`✅ Notified ${request.patient}'s team — you're on the way!`);
   } catch {
-    // Backend call is optional — Maps still opens even if it fails
     toast.success(`🗺️ Google Maps opened for ${request.hospital}. Drive safe!`);
   }
 }
 
 function Dashboard() {
   const { user, updateUser } = useAuth();
+  const [requests, setRequests] = useState<EmergencyRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        const res = await RequestsAPI.list();
+        const data = res.data.data || [];
+        const mapped = data.map(mapBackendRequest);
+        setRequests(mapped);
+      } catch (err) {
+        console.error("Failed to load requests on dashboard:", err);
+        setRequests(dummyRequests);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRequests();
+  }, []);
 
   return (
     <AppLayout>
@@ -127,7 +187,7 @@ function Dashboard() {
               </div>
             </div>
             <div className="mt-4 space-y-3">
-              {dummyRequests.slice(0, 3).map((r) => (
+              {(requests.length > 0 ? requests : dummyRequests).slice(0, 3).map((r) => (
                 <div
                   key={r.id}
                   className="flex items-center justify-between rounded-xl border bg-background p-4"

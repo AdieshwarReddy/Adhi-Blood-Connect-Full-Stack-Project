@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { AuthAPI, DonorsAPI } from "@/services/api";
+import { toast } from "sonner";
 
 export type Role = "donor" | "patient" | "hospital" | "admin";
 
@@ -40,47 +42,95 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     else localStorage.removeItem(STORAGE_KEY);
   };
 
-  const login: AuthContextValue["login"] = async (email, _password, role) => {
-    const u: User = {
-      id: crypto.randomUUID(),
-      name: email.split("@")[0] || "User",
-      email,
-      role,
-      bloodGroup: "O+",
-      city: "Bangalore",
-      available: true,
-    };
-    persist(u);
+  const login: AuthContextValue["login"] = async (email, password, role) => {
+    try {
+      const res = await AuthAPI.login({ email, password });
+      const { accessToken, user: dbUser } = res.data.data;
+      localStorage.setItem("adhi_jwt", accessToken);
+      persist({
+        id: dbUser.id,
+        name: dbUser.name,
+        email: dbUser.email,
+        role: dbUser.role as Role,
+        bloodGroup: dbUser.blood_group,
+        city: dbUser.city,
+        available: dbUser.availability,
+      });
+    } catch (error: any) {
+      const message = error.response?.data?.message || "Invalid email or password.";
+      toast.error(message);
+      throw error;
+    }
   };
 
-  const signup: AuthContextValue["signup"] = async (name, email, _password, role, bloodGroup) => {
-    persist({
-      id: crypto.randomUUID(),
-      name,
-      email,
-      role,
-      bloodGroup: bloodGroup || "O+",
-      city: "Bangalore",
-      available: true,
-    });
+  const signup: AuthContextValue["signup"] = async (name, email, password, role, bloodGroup) => {
+    try {
+      const res = await AuthAPI.signup({
+        name,
+        email,
+        password,
+        role,
+        blood_group: bloodGroup || "O+",
+        city: "Bangalore",
+        phone_number: "+919876543210",
+        coordinates: [77.5946, 12.9716],
+        availability: true,
+      });
+      const { accessToken, user: dbUser } = res.data.data;
+      localStorage.setItem("adhi_jwt", accessToken);
+      persist({
+        id: dbUser.id,
+        name: dbUser.name,
+        email: dbUser.email,
+        role: dbUser.role as Role,
+        bloodGroup: dbUser.blood_group,
+        city: dbUser.city,
+        available: dbUser.availability,
+      });
+    } catch (error: any) {
+      const message = error.response?.data?.message || "Registration failed.";
+      toast.error(message);
+      throw error;
+    }
   };
 
   const loginWithGoogle: AuthContextValue["loginWithGoogle"] = async (role) => {
-    persist({
-      id: crypto.randomUUID(),
-      name: "Google User",
-      email: "google.user@gmail.com",
-      role,
-      bloodGroup: "A+",
-      city: "Mumbai",
-      available: true,
-    });
+    try {
+      const res = await AuthAPI.google("dummy-google-token-123");
+      const { accessToken, user: dbUser } = res.data.data;
+      localStorage.setItem("adhi_jwt", accessToken);
+      persist({
+        id: dbUser.id,
+        name: dbUser.name,
+        email: dbUser.email,
+        role: dbUser.role as Role,
+        bloodGroup: dbUser.blood_group,
+        city: dbUser.city,
+        available: dbUser.availability,
+      });
+    } catch (error: any) {
+      const message = error.response?.data?.message || "Google authentication failed.";
+      toast.error(message);
+      throw error;
+    }
   };
 
-  const logout = () => persist(null);
-  const updateUser = (patch: Partial<User>) => {
+  const logout = () => {
+    localStorage.removeItem("adhi_jwt");
+    persist(null);
+  };
+
+  const updateUser = async (patch: Partial<User>) => {
     if (!user) return;
-    persist({ ...user, ...patch });
+    const updated = { ...user, ...patch };
+    persist(updated);
+    if (patch.available !== undefined) {
+      try {
+        await DonorsAPI.updateAvailability(patch.available);
+      } catch (err) {
+        console.error("Failed to update availability on backend:", err);
+      }
+    }
   };
 
   return (

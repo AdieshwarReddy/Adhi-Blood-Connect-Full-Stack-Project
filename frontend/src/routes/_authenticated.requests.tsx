@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Siren, Plus, Phone, MapPin, Navigation } from "lucide-react";
 import { toast } from "sonner";
 import { AppLayout } from "@/layouts/AppLayout";
@@ -12,7 +12,50 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { BloodBadge } from "@/components/BloodBadge";
 import { BLOOD_GROUPS, dummyRequests, type EmergencyRequest } from "@/lib/dummy";
 import { cn } from "@/lib/utils";
-import { api } from "@/services/api";
+import { api, RequestsAPI } from "@/services/api";
+
+function mapBackendRequest(r: any): EmergencyRequest {
+  const urgencyMapping: Record<string, "Critical" | "High" | "Moderate"> = {
+    critical: "Critical",
+    high: "High",
+    medium: "High",
+    moderate: "Moderate",
+    low: "Moderate",
+  };
+  
+  let timeStr = "some time ago";
+  if (r.created_at) {
+    try {
+      const createdDate = new Date(r.created_at);
+      const diffMs = Date.now() - createdDate.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) {
+        timeStr = "just now";
+      } else if (diffMins < 60) {
+        timeStr = `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+      } else {
+        const diffHrs = Math.floor(diffMins / 60);
+        if (diffHrs < 24) {
+          timeStr = `${diffHrs} hour${diffHrs > 1 ? "s" : ""} ago`;
+        } else {
+          timeStr = createdDate.toLocaleDateString();
+        }
+      }
+    } catch {}
+  }
+  
+  return {
+    id: r.id || r._id || String(Math.random()),
+    patient: r.patient_name || "Unknown Patient",
+    bloodGroup: (r.blood_group || "O+") as EmergencyRequest["bloodGroup"],
+    units: r.units_needed || 1,
+    hospital: r.hospital_name || "Unknown Hospital",
+    urgency: urgencyMapping[r.urgency_level?.toLowerCase()] || "High",
+    contact: r.hospital_contact || "+919876543210",
+    city: r.city || "Bangalore",
+    createdAt: timeStr,
+  };
+}
 
 async function handleHelp(request: EmergencyRequest) {
   // 1. Open Google Maps driving directions to the hospital
@@ -39,26 +82,60 @@ export const Route = createFileRoute("/_authenticated/requests")({
 });
 
 function RequestsPage() {
-  const [requests, setRequests] = useState<EmergencyRequest[]>(dummyRequests);
+  const [requests, setRequests] = useState<EmergencyRequest[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     patient: "", bloodGroup: "O+", units: 1, hospital: "",
     urgency: "High" as EmergencyRequest["urgency"], contact: "", city: "",
   });
 
-  const submit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        const res = await RequestsAPI.list();
+        const data = res.data.data || [];
+        const mapped = data.map(mapBackendRequest);
+        setRequests(mapped);
+      } catch (err) {
+        toast.error("Failed to load active requests from server");
+        setRequests(dummyRequests);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRequests();
+  }, []);
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.patient || !form.hospital || !form.contact) return toast.error("Please fill required fields");
-    const newReq: EmergencyRequest = {
-      id: crypto.randomUUID(),
-      ...form,
-      bloodGroup: form.bloodGroup as EmergencyRequest["bloodGroup"],
-      createdAt: "just now",
-    };
-    setRequests((r) => [newReq, ...r]);
-    toast.success("Emergency request posted — notifying nearby donors!");
-    setOpen(false);
-    setForm({ patient: "", bloodGroup: "O+", units: 1, hospital: "", urgency: "High", contact: "", city: "" });
+    
+    try {
+      const res = await RequestsAPI.create({
+        patient_name: form.patient,
+        blood_group: form.bloodGroup,
+        units_needed: form.units,
+        urgency_level: form.urgency.toLowerCase(),
+        hospital_name: form.hospital,
+        hospital_contact: form.contact,
+        city: form.city || "Bangalore",
+        coordinates: [77.5946, 12.9716],
+      });
+      
+      const createdRequest = res.data.data?.request || res.data.data;
+      if (createdRequest) {
+        const mapped = mapBackendRequest(createdRequest);
+        setRequests((r) => [mapped, ...r]);
+        toast.success("Emergency request posted — notifying nearby donors!");
+      } else {
+        throw new Error("Invalid response format");
+      }
+      setOpen(false);
+      setForm({ patient: "", bloodGroup: "O+", units: 1, hospital: "", urgency: "High", contact: "", city: "" });
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to broadcast emergency request");
+    }
   };
 
   return (

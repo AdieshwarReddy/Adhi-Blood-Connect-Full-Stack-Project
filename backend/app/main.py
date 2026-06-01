@@ -6,7 +6,7 @@ from app.core.database import db_manager, get_db
 from app.core.logger import logger
 from app.middleware.logging_middleware import LoggingMiddleware
 from app.utils.response_handler import success_response, error_response
-
+from app.utils.helpers import clean_db_doc, clean_db_docs
 # Import all controllers from v1
 from app.api.v1.auth import router as auth_router
 from app.api.v1.users import router as users_router
@@ -177,6 +177,8 @@ async def react_requests_create_compatibility(payload: dict, db=Depends(get_db))
     
     # Fetch ranked compatible donors
     matched_donors = await DonorMatchingService.match_donors_for_request(
+
+
         db=db,
         patient_blood_group=blood_group,
         coordinates=coords,
@@ -198,4 +200,3 @@ async def react_requests_create_compatibility(payload: dict, db=Depends(get_db))
         message="Emergency request created and broadcasts sent."
     )
 
-from app.utils.helpers import clean_db_docs

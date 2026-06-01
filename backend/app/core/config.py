@@ -35,7 +35,8 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Union[str, None] = None
 
     # CORS Settings
-    CORS_ORIGINS: Union[str, List[str]] = "http://localhost:5173,http://127.0.0.1:5173"
+    CORS_ORIGINS: Union[str, List[str]] = "http://localhost:5173,http://localhost:8080",
+
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
