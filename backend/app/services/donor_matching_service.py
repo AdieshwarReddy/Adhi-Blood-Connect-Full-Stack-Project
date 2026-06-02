@@ -20,8 +20,8 @@ class DonorMatchingService:
         """
         Retrieves compatible, active, and available donors, calculates their fit scores, and ranks them.
         """
-        print("DEBUG MATCH DB:", db, type(db))
         logger.info(f"Initiating Smart Donor Matching for blood group '{patient_blood_group}' at {coordinates} (Urgency: '{urgency_level}').")
+
 
         
         # Adjust search radius based on emergency urgency

@@ -40,9 +40,9 @@ class GeoService:
         Searches MongoDB for nearby active donors within a radius.
         Uses 2dsphere indexes via $near to perform geospatial sorting.
         """
-        print("DEBUG GEO DB:", db, type(db))
         # Convert radius to radians (Earth radius is ~6371 km)
         max_distance_meters = radius_km * 1000.0
+
 
         
         # Base query for compatible/active donors
